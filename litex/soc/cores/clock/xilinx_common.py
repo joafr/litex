@@ -42,10 +42,10 @@ class XilinxClocking(Module, AutoCSR):
         self.clkin_freq = freq
         register_clkin_log(self.logger, clkin, freq)
 
-    def create_clkout(self, cd, freq, phase=0, buf="bufg", margin=1e-2, with_reset=True, ce=None):
+    def create_clkout(self, cd, freq, phase=0, buf="bufg", margin=1e-2, with_reset=True, ce=None, duty_cycle=0.500):
         assert self.nclkouts < self.nclkouts_max
         clkout = Signal()
-        self.clkouts[self.nclkouts] = (clkout, freq, phase, margin)
+        self.clkouts[self.nclkouts] = (clkout, freq, phase, margin, duty_cycle)
         if with_reset:
             self.specials += AsyncResetSynchronizer(cd, ~self.locked)
         if buf is None:
@@ -78,7 +78,7 @@ class XilinxClocking(Module, AutoCSR):
                 (vco_freq_min, vco_freq_max) = self.vco_freq_range
                 if (vco_freq >= vco_freq_min*(1 + self.vco_margin) and
                     vco_freq <= vco_freq_max*(1 - self.vco_margin)):
-                    for n, (clk, f, p, m) in sorted(self.clkouts.items()):
+                    for n, (clk, f, p, m, dc) in sorted(self.clkouts.items()):
                         valid = False
                         d_ranges = [self.clkout_divide_range]
                         if getattr(self, "clkout{}_divide_range".format(n), None) is not None:
@@ -90,6 +90,7 @@ class XilinxClocking(Module, AutoCSR):
                                     config["clkout{}_freq".format(n)]   = clk_freq
                                     config["clkout{}_divide".format(n)] = d
                                     config["clkout{}_phase".format(n)]  = p
+                                    config["clkout{}_dutycycle".format(n)]  = dc
                                     valid = True
                                     break
                                 if valid:
