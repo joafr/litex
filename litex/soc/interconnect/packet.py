@@ -310,7 +310,7 @@ class Packetizer(Module):
 # Depacketizer -------------------------------------------------------------------------------------
 
 class Depacketizer(Module):
-    def __init__(self, sink_description, source_description, header):
+    def __init__(self, sink_description, source_description, header, big_endian=False):
         self.sink   = sink   = stream.Endpoint(sink_description)
         self.source = source = stream.Endpoint(source_description)
         self.header = Signal(header.length*8)
@@ -345,6 +345,13 @@ class Depacketizer(Module):
         # Header Shift/Decode.
         if (header_words) == 1 and (header_leftover == 0):
             self.sync += If(sr_shift, sr.eq(sink.data))
+        elif big_endian:
+            assert bytes_per_clk == 1 # limited support
+
+            self.sync += [
+                If(sr_shift,          sr.eq(Cat(sink.data,   sr[:-bytes_per_clk*8]))),
+                If(sr_shift_leftover, sr.eq(Cat(sink.data, sr[:-header_leftover*8])))
+            ]
         else:
             self.sync += [
                 If(sr_shift,          sr.eq(Cat(sr[bytes_per_clk*8:],   sink.data))),
