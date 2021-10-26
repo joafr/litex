@@ -350,7 +350,7 @@ class Depacketizer(Module):
 
             self.sync += [
                 If(sr_shift,          sr.eq(Cat(sink.data,   sr[:-bytes_per_clk*8]))),
-                If(sr_shift_leftover, sr.eq(Cat(sink.data, sr[:-header_leftover*8])))
+                If(sr_shift_leftover, sr.eq(Cat(sink.data, sr[:])[:len(sr)]))
             ]
         else:
             self.sync += [
