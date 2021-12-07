@@ -476,7 +476,7 @@ class Depacketizer(Module):
 # PacketFIFO ---------------------------------------------------------------------------------------
 
 class PacketFIFO(Module):
-    def __init__(self, layout, payload_depth, param_depth=None, buffered=False):
+    def __init__(self, layout, payload_depth, param_depth=None, buffered=False, almost_full=None):
         self.sink   = sink   = stream.Endpoint(layout)
         self.source = source = stream.Endpoint(layout)
 
@@ -496,13 +496,26 @@ class PacketFIFO(Module):
         self.submodules.payload_fifo = payload_fifo = stream.SyncFIFO(payload_description, payload_depth, buffered)
         self.submodules.param_fifo   = param_fifo   = stream.SyncFIFO(param_description,   param_depth,   buffered)
 
+        self.level = payload_fifo.level
+        self.packets = param_fifo.level
+
+        full = Signal()
+        if almost_full is not None:
+            self.comb += full.eq(self.level >= almost_full)
+
         # Connect Sink to FIFOs.
         self.comb += [
             sink.connect(param_fifo.sink,   keep=set([e[0] for e in param_layout])),
             sink.connect(payload_fifo.sink, keep=set([e[0] for e in payload_layout] + ["last"])),
-            param_fifo.sink.valid.eq(sink.valid & sink.last),
-            payload_fifo.sink.valid.eq(sink.valid & payload_fifo.sink.ready),
-            sink.ready.eq(param_fifo.sink.ready & payload_fifo.sink.ready),
+            If(full,
+                sink.ready.eq(0),
+                param_fifo.sink.valid.eq(0),
+                payload_fifo.sink.valid.eq(0)
+            ).Else(
+                param_fifo.sink.valid.eq(sink.valid & sink.last),
+                payload_fifo.sink.valid.eq(sink.valid & payload_fifo.sink.ready),
+                sink.ready.eq(param_fifo.sink.ready & payload_fifo.sink.ready),
+            )
         ]
 
         # Connect FIFOs to Source.
