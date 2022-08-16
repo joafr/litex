@@ -498,11 +498,15 @@ class PacketFIFO(Module):
 
         self.level = payload_fifo.level
         self.packets = param_fifo.level
+        accept_last = sink.ready | (self.packets == 0)
 
         full = Signal()
         if almost_full is not None:
             self.comb += full.eq(self.level >= almost_full)
 
+        # Account for fifo being full without a whole packet inside
+        # i.e. source.valid == sink.ready == 0
+        # Then a reset is needed to avoid dead-lock
         # Connect Sink to FIFOs.
         self.comb += [
             sink.connect(param_fifo.sink,   keep=set([e[0] for e in param_layout])),
@@ -512,8 +516,8 @@ class PacketFIFO(Module):
                 param_fifo.sink.valid.eq(0),
                 payload_fifo.sink.valid.eq(0)
             ).Else(
-                param_fifo.sink.valid.eq(sink.valid & sink.last),
-                payload_fifo.sink.valid.eq(sink.valid & payload_fifo.sink.ready),
+                param_fifo.sink.valid.eq(sink.valid & sink.last & accept_last),
+                payload_fifo.sink.valid.eq(sink.valid & sink.ready),
                 sink.ready.eq(param_fifo.sink.ready & payload_fifo.sink.ready),
             )
         ]
